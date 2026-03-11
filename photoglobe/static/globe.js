@@ -142,12 +142,53 @@ const panelCoords = document.getElementById('panel-coords');
 const panelDesc = document.getElementById('panel-desc');
 const panelImg = document.getElementById('panel-img');
 const panelGrid = document.getElementById('panel-grid');
+const closeBtn = document.getElementById('close-btn');
 
-// Close panel when button clicked
-document.getElementById('close-btn').addEventListener('click', () => {
-    panel.classList.remove('open');
-    panelGrid.classList.remove('visible');
-    panelGrid.innerHTML = '';
+// Track cluster state for back navigation
+let currentClusterPins = null;
+let viewingSingleInCluster = false;
+
+// Close/back button — context-sensitive
+closeBtn.addEventListener('click', () => {
+    if (viewingSingleInCluster && currentClusterPins) {
+        // Back to cluster grid
+        const pins = currentClusterPins;
+        panelName.textContent = `${pins[0].name.split(',')[0]} [${pins.length}]`;
+        panelCoords.textContent = '';
+        panelDesc.textContent = '';
+        panelImg.style.display = 'none';
+        panelGrid.innerHTML = '';
+        panelGrid.classList.add('visible');
+        viewingSingleInCluster = false;
+        closeBtn.textContent = '✕';
+        pins.forEach(pin => {
+            const img = document.createElement('img');
+            img.src = '/photoglobe/thumbnail/' + pin.filename + '.webp';
+            img.addEventListener('click', e => {
+                e.stopPropagation();
+                panelName.textContent = pin.name;
+                panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
+                panelDesc.textContent = pin.desc || '';
+                panelImg.src = '/photoglobe/photo/' + pin.filename;
+                panelImg.style.display = 'block';
+                panelGrid.classList.remove('visible');
+                panelGrid.innerHTML = '';
+                viewingSingleInCluster = true;
+                closeBtn.textContent = '←';
+                targetRotY = (-pin.lng - 90) * Math.PI / 180;
+                targetRotX = pin.lat * Math.PI / 180;
+            });
+            panelGrid.appendChild(img);
+        });
+    } else {
+        // Actually close the panel
+        panel.classList.remove('open');
+        panelGrid.classList.remove('visible');
+        panelGrid.innerHTML = '';
+        currentClusterPins = null;
+        viewingSingleInCluster = false;
+        closeBtn.textContent = '✕';
+    }
 });
 
 // Lightbox elements
@@ -824,6 +865,9 @@ canvas.addEventListener('click', () => {
                 panelName.textContent = pin.name;
                 panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
                 panelDesc.textContent = pin.desc;
+                currentClusterPins = null;
+                viewingSingleInCluster = false;
+                closeBtn.textContent = '✕';
                 if (pin.filename) {
                     panelImg.src = '/photoglobe/photo/' + pin.filename;
                     panelImg.style.display = 'block';
@@ -850,6 +894,9 @@ canvas.addEventListener('click', () => {
                 panelImg.style.display = 'none';
                 panelGrid.innerHTML = '';
                 panelGrid.classList.add('visible');
+                currentClusterPins = cluster.pins;
+                viewingSingleInCluster = false;
+                closeBtn.textContent = '✕';
                 cluster.pins.forEach(pin => {
                     const img = document.createElement('img');
                     img.src = '/photoglobe/thumbnail/' + pin.filename + '.webp';
@@ -857,10 +904,13 @@ canvas.addEventListener('click', () => {
                         e.stopPropagation();
                         panelName.textContent = pin.name;
                         panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
+                        panelDesc.textContent = pin.desc || '';
                         panelImg.src = '/photoglobe/photo/' + pin.filename;
                         panelImg.style.display = 'block';
                         panelGrid.classList.remove('visible');
                         panelGrid.innerHTML = '';
+                        viewingSingleInCluster = true;
+                        closeBtn.textContent = '←';
                         targetRotY = (-pin.lng - 90) * Math.PI / 180;
                         targetRotX = pin.lat * Math.PI / 180;
                     });

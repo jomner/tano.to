@@ -386,6 +386,46 @@ canvas {
   transform: scale(0.95);
 }
 
+/* ─── Back button — glassy bubble (hidden by default) ───────────────────── */
+
+#back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(220, 235, 255, 0.7);
+  cursor: pointer;
+  font-size: 15px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  transition: all 0.2s ease;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+#back-btn.visible {
+  display: flex;
+}
+
+#back-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  transform: scale(1.1);
+  box-shadow:
+    0 2px 10px rgba(100, 170, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+#back-btn:active {
+  transform: scale(0.95);
+}
+
 /* ─── Panel body ────────────────────────────────────────────────────────── */
 
 #panel-body {
@@ -592,4 +632,3 @@ canvas {
 #lightbox-close:active {
   transform: scale(0.95);
 }
-
