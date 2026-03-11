@@ -722,3 +722,16 @@ canvas {
 #lightbox-close:active {
   transform: scale(0.95);
 }
+
+.spatial-tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 6px;
+    background: #4a9eff; /* Electric blue to match your theme */
+    color: #080b0f;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 4px;
+    vertical-align: middle;
+    letter-spacing: 0.05em;
+}

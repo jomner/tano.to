@@ -995,6 +995,21 @@ canvas.addEventListener('click', () => {
                 const coordParts = [pin.lat + '° N  ' + pin.lng + '° E'];
                 if (pin.datetime) coordParts.push(pin.datetime);
                 panelCoords.textContent = coordParts.join('  ·  ');
+                // Add Spatial Tag
+                const coordsEl = document.getElementById('panel-coords');
+                if (pin.is_spatial) {
+                    const spatialTag = document.createElement('span');
+                    spatialTag.className = 'spatial-tag';
+                    spatialTag.innerText = 'SPATIAL';
+                    spatialTag.style.marginLeft = '8px';
+                    spatialTag.style.padding = '2px 6px';
+                    spatialTag.style.background = '#4a9eff';
+                    spatialTag.style.color = '#000';
+                    spatialTag.style.fontSize = '10px';
+                    spatialTag.style.fontWeight = 'bold';
+                    spatialTag.style.borderRadius = '4px';
+                    coordsEl.appendChild(spatialTag);
+                }
                 panelDesc.textContent = pin.desc || '';
                 currentClusterPins = null;
                 viewingSingleInCluster = false;
@@ -1117,13 +1132,16 @@ window.addEventListener('resize', () => {
     R = Math.min(canvas.width, canvas.height) * 0.44;
 });
 
-// Scroll to zoom
+// Locate this section at the bottom of globe.js
 canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const step = (e.deltaY > 0 ? -0.3 : 0.3) * zoom * 0.3;
     const newZoom = Math.max(0.5, Math.min(MAX_ZOOM, zoom + step));
-    // Zooming in counts as interaction (pauses auto-spin)
-    if (newZoom > zoom) lastInteraction = Date.now();
+    
+    // FIX: Removed the "if (newZoom > zoom)" check. 
+    // Any scroll interaction now resets the idle timer.
+    lastInteraction = Date.now(); 
+    
     zoom = newZoom;
     targetZoom = zoom;
     slowZoom = false;

@@ -16,9 +16,12 @@ def convert_gps(v):
     return v[0][0]/v[0][1] + v[1][0]/v[1][1]/60 + v[2][0]/v[2][1]/3600
 
 def extract_exif(filepath):
-    """Extract GPS coords and datetime from an image.
-    Returns dict with 'lat', 'lng', and optionally 'datetime', or None if no GPS."""
+    """Extract GPS coords, datetime, and spatial status. Returns None if no GPS."""
     img = Image.open(filepath)
+    width, height = img.size
+    
+    # Detection: Side-by-side or Over-Under stereo pairs
+    is_spatial = (width == 2 * height) or (height == 2 * width)
 
     exif_bytes = img.info.get('exif')
     if not exif_bytes:
@@ -30,31 +33,26 @@ def extract_exif(filepath):
         return None
 
     gps = exif.get('GPS', {})
+    # If no GPS coordinates, we return None to skip this pin
     if 2 not in gps or 4 not in gps:
         return None
 
-    lat = convert_gps(gps[2]) * (-1 if gps.get(1) == b'S' else 1)
-    lng = convert_gps(gps[4]) * (-1 if gps.get(3) == b'W' else 1)
+    info = {
+        'lat': convert_gps(gps[2]) * (-1 if gps.get(1) == b'S' else 1),
+        'lng': convert_gps(gps[4]) * (-1 if gps.get(3) == b'W' else 1),
+        'is_spatial': is_spatial
+    }
 
-    result = {'lat': lat, 'lng': lng}
-
-    # Try to get DateTimeOriginal (tag 36867), fall back to DateTime (tag 306)
+    # Extract Datetime if available
     exif_ifd = exif.get('Exif', {})
-    dt_raw = exif_ifd.get(piexif.ExifIFD.DateTimeOriginal) or \
-             exif_ifd.get(piexif.ExifIFD.DateTimeDigitized) or \
-             exif.get('0th', {}).get(piexif.ImageIFD.DateTime)
-    if dt_raw:
+    if 36867 in exif_ifd:
         try:
-            # EXIF datetime is bytes like b'2024:03:15 14:30:00'
-            dt_str = dt_raw.decode('utf-8') if isinstance(dt_raw, bytes) else str(dt_raw)
-            # Reformat from "2024:03:15 14:30:00" to "Mar 15, 2024 2:30 PM"
-            from datetime import datetime
-            dt = datetime.strptime(dt_str, '%Y:%m:%d %H:%M:%S')
-            result['datetime'] = dt.strftime('%b %-d, %Y %-I:%M %p')
-        except Exception:
+            dt_str = exif_ifd[36867].decode('utf-8')
+            info['datetime'] = dt_str.replace(':', '-', 2)[:16]
+        except:
             pass
 
-    return result
+    return info
 
 # Load existing pins.json if it exists so we don't re-geocode
 if os.path.exists(PINS_PATH):
@@ -92,24 +90,41 @@ for folder in sorted(os.listdir(IMAGES_DIR)):
 
             lat, lng = info['lat'], info['lng']
             url = f'https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json'
-            r = requests.get(url, headers={'User-Agent': 'depthmap/1.0'}, timeout=10)
-            address = r.json().get('address', {})
+            
+            # Use a custom User-Agent as required by Nominatim's Policy
+            r = requests.get(url, headers={'User-Agent': 'PhotoGlobe-Project-Student'}, timeout=10)
+            
+            if r.status_code != 200:
+                print(f"Error {relative}: Server returned status {r.status_code}. Waiting 5 seconds...")
+                time.sleep(5)
+                continue
+
+            data = r.json()
+            address = data.get('address', {})
+            
             name = (address.get('city') or address.get('town') or
                     address.get('village') or address.get('county') or
                     address.get('state') or 'Unknown')
             country = address.get('country', '')
+            
             pin = {
                 'filename': relative,
                 'folder': folder,
                 'lat': round(lat, 4),
                 'lng': round(lng, 4),
-                'name': f'{name}, {country}'
+                'name': f'{name}, {country}',
+                'is_spatial': info.get('is_spatial', False)
             }
+            
             if 'datetime' in info:
                 pin['datetime'] = info['datetime']
+                
             results.append(pin)
             print(f'{relative} -> {name}, {country}')
-            time.sleep(1)
+            
+            # Nominatim requires absolute minimum 1s, but 1.5s is safer for batches
+            time.sleep(1.5) 
+            
         except Exception as e:
             print(f'Error {relative}: {e}')
 
