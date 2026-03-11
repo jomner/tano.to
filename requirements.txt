@@ -1,1 +1,6 @@
 flask
+pillow-heif
+Pillow
+piexif
+flask
+requests
