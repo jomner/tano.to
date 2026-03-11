@@ -1,0 +1,8 @@
+# # Ignore specific photo types
+# *.HEIC
+# *.jpg
+# *.jpeg
+# *.png
+
+# # Ignore the thumbnails folder if it contains personal images
+# thumbnails/
