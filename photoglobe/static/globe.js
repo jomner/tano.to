@@ -90,6 +90,10 @@ let slowZoom = false;
 // Track fading pins that just got absorbed into a cluster
 const fadingPins = [];
 
+// Track when each pin/cluster first appeared, keyed by stable cluster key
+const appearTimes = {};
+const APPEAR_DURATION = 350;
+
 // Convert a lat/lng into a 3D point on a sphere of radius r
 function latLngTo3D(lat, lng, r) {
     const phi = (90 - lat) * Math.PI / 180;
@@ -707,12 +711,28 @@ function draw() {
     }
 
     // Draw each cluster or pin
+    const currentAppearKeys = new Set();
     for (const cluster of clusters) {
         const count = cluster.pins.length;
         const dx = cluster.x - mouseX;
         const dy = cluster.y - mouseY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const hovered = dist < 30;
+
+        // Compute appear animation
+        const appearKey = count === 1
+            ? cluster.pins[0].filename
+            : cluster.pins.map(p => p.filename).sort().join(',');
+        currentAppearKeys.add(appearKey);
+        if (appearTimes[appearKey] === undefined) {
+            appearTimes[appearKey] = Date.now();
+        }
+        const appearElapsed = Date.now() - appearTimes[appearKey];
+        const appearT = Math.min(1, appearElapsed / APPEAR_DURATION);
+        // Ease-out cubic
+        const appearEased = 1 - Math.pow(1 - appearT, 3);
+        const appearScale = 0.3 + 0.7 * appearEased;
+        const appearAlpha = appearEased;
 
         if (hovered) {
             anyHovered = true;
@@ -737,9 +757,11 @@ function draw() {
             const ph = 78;
 
             ctx.save();
+            ctx.globalAlpha = appearAlpha;
             ctx.translate(cluster.x, cluster.y);
             ctx.rotate(tilt);
-            if (hovered) ctx.scale(1.08, 1.08);
+            const hoverScale = hovered ? 1.08 : 1;
+            ctx.scale(hoverScale * appearScale, hoverScale * appearScale);
             ctx.shadowColor = 'rgba(0,0,0,0.55)';
             ctx.shadowBlur = hovered ? 20 : 14;
             ctx.shadowOffsetX = 2;
@@ -768,9 +790,11 @@ function draw() {
             const ph = 66;
 
             ctx.save();
+            ctx.globalAlpha = appearAlpha;
             ctx.translate(cluster.x, cluster.y);
             ctx.rotate(tilt);
-            if (hovered) ctx.scale(1.08, 1.08);
+            const hoverScale = hovered ? 1.08 : 1;
+            ctx.scale(hoverScale * appearScale, hoverScale * appearScale);
             ctx.shadowColor = 'rgba(0,0,0,0.55)';
             ctx.shadowBlur = hovered ? 20 : 14;
             ctx.shadowOffsetX = 2;
@@ -786,6 +810,13 @@ function draw() {
                 ctx.drawImage(thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, ph - margin*2 - 9);
             }
             ctx.restore();
+        }
+    }
+
+    // Clean up appear times for pins/clusters no longer on screen
+    for (const key in appearTimes) {
+        if (!currentAppearKeys.has(key)) {
+            delete appearTimes[key];
         }
     }
 
