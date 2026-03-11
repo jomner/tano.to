@@ -4,3 +4,4 @@ Pillow
 piexif
 flask
 requests
+gunicorn
