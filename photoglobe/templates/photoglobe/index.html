@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PhotoGlobe</title>
+    <link rel="stylesheet" href="/photoglobe/static/style.css">
+    <link rel="icon" type="image/png" href="/static/assets/favicon.png">
+  </head>
+  <body>
+    <a href="/"><img id="logo" src="/photoglobe/static/assets/photoglobelogo.png" alt="photoglobe"></a>
+
+    <canvas id="globe-webgl"></canvas>
+    <canvas id="globe"></canvas>
+
+    <div id="tooltip"></div>
+
+    <div id="panel">
+      <div id="panel-header">
+        <div>
+          <div id="panel-name"></div>
+          <div id="panel-coords"></div>
+        </div>
+        <button id="close-btn">✕</button>
+      </div>
+      <div id="panel-body">
+        <img id="panel-img" src="" alt="">
+        <div id="panel-grid"></div>
+        <div id="panel-desc"></div>
+      </div>
+    </div>
+
+    <div id="lightbox">
+      <div id="lightbox-bg"></div>
+      <img id="lightbox-img" src="" alt="">
+      <button id="lightbox-close">✕</button>
+    </div>
+
+    <div id="clock"></div>
+
+    <script src="/photoglobe/static/globe.js"></script>
+  </body>
+</html>

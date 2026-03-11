@@ -1,0 +1,191 @@
+body {
+    background-color: #0d0d0d;
+    margin: 0;
+    padding: 25px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Outer wrapper stacks logo and content box vertically, centered */
+.site-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+}
+
+/* Logo above the box */
+.logo {
+    width: 450px;
+    opacity: 0.9;
+    transition: opacity 0.2s;
+}
+
+.logo:hover {
+    opacity: 1;
+}
+
+/* Content box: wider, with heavy blur so the bg animation shows through legibly */
+.content-box {
+    width: 940px;
+    min-height: 800px;
+    background-color: rgba(0, 0, 0, 0.3);  /* lighter tint */
+    backdrop-filter: blur(48px);            /* heavier blur */
+    -webkit-backdrop-filter: blur(48px);    /* Safari support */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 42px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Nav strip: centered, with divider below */
+.main-nav {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-wrap: wrap;
+}
+
+.main-nav a {
+    color: #ffffff;
+    text-decoration: none;
+    font-family: sans-serif;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    opacity: 0.65;
+    transition: opacity 0.2s;
+}
+
+/* Hover: full white */
+.main-nav a:hover {
+    opacity: 1;
+}
+
+/* Active page link: yellow */
+.main-nav a.active {
+    color: #f5c842;
+    opacity: 1;
+    text-shadow: 0 0 12px rgba(245, 200, 66, 0.5);
+}
+
+/* Content area below the nav */
+.page-content {
+    padding: 24px 28px;
+    color: rgba(255, 255, 255, 0.75);
+    font-family: sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* ── Projects grid ── */
+
+/* 3 equal columns with gutters */
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+/* Thumbnail fills the whole card at 4:3 */
+.project-card {
+    display: block;
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s;
+}
+
+.project-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Thumbnail fills the entire card */
+.card-thumb {
+    width: 100%;
+    height: 100%;
+}
+
+.card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Gradient fade at the bottom of the thumbnail for tag legibility */
+.card-fade {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    pointer-events: none;
+}
+
+.card-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Hide title and description */
+.card-title,
+.card-desc {
+    display: none;
+}
+
+/* Tags sit in the bottom-right corner over the image */
+.card-body {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    padding: 0;
+}
+
+.card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 5px;
+}
+
+.tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: #fff;
+    letter-spacing: 0.04em;
+    font-weight: bold;
+    opacity: 0.9;
+}
+
+/* Tag colors based on content — add more as needed */
+.tag[data-tag="web"]         { background-color: #3b82f6; }
+.tag[data-tag="webgl"]       { background-color: #8b5cf6; }
+.tag[data-tag="photography"] { background-color: #f59e0b; }
+.tag[data-tag="design"]      { background-color: #ec4899; }
+.tag[data-tag="music"]       { background-color: #10b981; }
+.tag[data-tag="code"]        { background-color: #ef4444; }
+.tag[data-tag="art"]         { background-color: #f97316; }
+
+.bio {
+    color: rgba(255, 255, 255, 0.6);
+    font-family: sans-serif;
+    font-size: 15px;
+    line-height: 1.8;
+}
+
+.bio-title {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 52px;
+    margin-bottom: 10px;
+}
