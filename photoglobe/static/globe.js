@@ -132,9 +132,42 @@ function project(p) {
 // Start with empty pins array — filled from pins.json via Flask
 let PINS = [];
 
-fetch('/photoglobe/pins')
-  .then(response => response.json())
-  .then(data => { PINS = data; });
+// Folder picker
+const folderSelect = document.getElementById('folder-select');
+
+function loadPins(folder) {
+    const url = folder
+        ? '/photoglobe/pins?folder=' + encodeURIComponent(folder)
+        : '/photoglobe/pins';
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            PINS = data;
+            // Clear appear times so new pins animate in
+            for (const key in appearTimes) delete appearTimes[key];
+            // Close panel if open
+            panel.classList.remove('open');
+        });
+}
+
+// Populate folder dropdown then load all pins
+fetch('/photoglobe/folders')
+    .then(r => r.json())
+    .then(folders => {
+        folders.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            folderSelect.appendChild(opt);
+        });
+    })
+    .catch(() => {});
+
+loadPins('');
+
+folderSelect.addEventListener('change', () => {
+    loadPins(folderSelect.value);
+});
 
 // Grab the tooltip element
 const tooltip = document.getElementById('tooltip');
@@ -171,7 +204,9 @@ closeBtn.addEventListener('click', () => {
             img.addEventListener('click', e => {
                 e.stopPropagation();
                 panelName.textContent = pin.name;
-                panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
+                const cp = [pin.lat + '° N  ' + pin.lng + '° E'];
+                if (pin.datetime) cp.push(pin.datetime);
+                panelCoords.textContent = cp.join('  ·  ');
                 panelDesc.textContent = pin.desc || '';
                 panelImg.src = '/photoglobe/photo/' + pin.filename;
                 panelImg.style.display = 'block';
@@ -239,6 +274,27 @@ function getTilt(filename) {
         pinTilts[filename] = (Math.random() - 0.5) * 16 * Math.PI / 180;
     }
     return pinTilts[filename];
+}
+
+// Draw a thumbnail image cropped to cover the destination rect (no stretching)
+function drawThumbCover(ctx, thumb, dx, dy, dw, dh) {
+    const srcAspect = thumb.width / thumb.height;
+    const dstAspect = dw / dh;
+    let sx, sy, sw, sh;
+    if (srcAspect > dstAspect) {
+        // Source is wider — crop sides
+        sh = thumb.height;
+        sw = thumb.height * dstAspect;
+        sx = (thumb.width - sw) / 2;
+        sy = 0;
+    } else {
+        // Source is taller — crop top/bottom
+        sw = thumb.width;
+        sh = thumb.width / dstAspect;
+        sx = 0;
+        sy = (thumb.height - sh) / 2;
+    }
+    ctx.drawImage(thumb, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 // Calculate the longitude the sun is currently over based on UTC time
@@ -619,49 +675,54 @@ function draw() {
     // Replace your "Build list of visible pins" and "Cluster pins" sections with this:
     const clusters = clusterPins(PINS, r, Math.max(30, 44 / zoom));
 
-    // The key generation remains the same, but it's now stable 
-    // because the cluster membership won't change at the horizon.
-    const currentKeys = new Set(clusters.map(c => 
-        c.pins.length === 1 ? c.pins[0].filename : c.pins.map(p => p.filename).sort().join(',')
-    ));
+    // Skip expensive fade-in/fade-out tracking during zoom/rotation animations
+    const isAnimating = zoomAnimStart !== null || targetRotY !== null;
 
-    if (lastClusters.length > 0) {
-        for (const oldCluster of lastClusters) {
-            const isSingle = oldCluster.pins.length === 1;
-            const key = isSingle ? oldCluster.pins[0].filename : oldCluster.pins.map(p => p.filename).sort().join(',');
+    if (!isAnimating) {
+        // The key generation remains the same, but it's now stable 
+        // because the cluster membership won't change at the horizon.
+        const currentKeys = new Set(clusters.map(c => 
+            c.pins.length === 1 ? c.pins[0].filename : c.pins.map(p => p.filename).sort().join(',')
+        ));
 
-            if (!currentKeys.has(key)) {
-                // Find clusters in the NEW frame that contain pins from this OLD cluster
-                const destinationClusters = clusters.filter(c => 
-                    c.pins.some(p => oldCluster.pins.some(op => op.filename === p.filename))
-                );
+        if (lastClusters.length > 0) {
+            for (const oldCluster of lastClusters) {
+                const isSingle = oldCluster.pins.length === 1;
+                const key = isSingle ? oldCluster.pins[0].filename : oldCluster.pins.map(p => p.filename).sort().join(',');
 
-                // Check if any of these destination pins are actually on the visible side (z > 0)
-                const isStillVisible = destinationClusters.some(c => {
-                    return c.pins.some(p => {
-                        const rot = rotate(latLngTo3D(p.lat, p.lng, r));
-                        return rot.z > 0;
+                if (!currentKeys.has(key)) {
+                    // Find clusters in the NEW frame that contain pins from this OLD cluster
+                    const destinationClusters = clusters.filter(c => 
+                        c.pins.some(p => oldCluster.pins.some(op => op.filename === p.filename))
+                    );
+
+                    // Check if any of these destination pins are actually on the visible side (z > 0)
+                    const isStillVisible = destinationClusters.some(c => {
+                        return c.pins.some(p => {
+                            const rot = rotate(latLngTo3D(p.lat, p.lng, r));
+                            return rot.z > 0;
+                        });
                     });
-                });
 
-                // FADE IF: 
-                // 1. It joined a larger group (merging)
-                // 2. OR it has completely moved to the back of the globe (not visible)
-                const joinedLarger = destinationClusters.length === 1 && destinationClusters[0].pins.length > oldCluster.pins.length;
-                const shouldFade = joinedLarger || !isStillVisible;
+                    // FADE IF: 
+                    // 1. It joined a larger group (merging)
+                    // 2. OR it has completely moved to the back of the globe (not visible)
+                    const joinedLarger = destinationClusters.length === 1 && destinationClusters[0].pins.length > oldCluster.pins.length;
+                    const shouldFade = joinedLarger || !isStillVisible;
 
-                if (shouldFade && !fadingPins.some(f => f.id === key)) {
-                    fadingPins.push({
-                        id: key,
-                        isCluster: !isSingle,
-                        count: oldCluster.pins.length,
-                        name: isSingle ? "" : oldCluster.pins[0].name.split(',')[0],
-                        filename: isSingle ? key : oldCluster.pins[clusterRepCache[key] || 0].filename,
-                        x: oldCluster.x,
-                        y: oldCluster.y,
-                        startTime: Date.now(),
-                        duration: 400
-                    });
+                    if (shouldFade && !fadingPins.some(f => f.id === key)) {
+                        fadingPins.push({
+                            id: key,
+                            isCluster: !isSingle,
+                            count: oldCluster.pins.length,
+                            name: isSingle ? (oldCluster.pins[0].name || '').split(',')[0] : oldCluster.pins[0].name.split(',')[0],
+                            filename: isSingle ? key : oldCluster.pins[clusterRepCache[key] || 0].filename,
+                            x: oldCluster.x,
+                            y: oldCluster.y,
+                            startTime: Date.now(),
+                            duration: 400
+                        });
+                    }
                 }
             }
         }
@@ -680,7 +741,7 @@ function draw() {
         
         // Switch dimensions based on type
         const pw = f.isCluster ? 66 : 54;
-        const ph = f.isCluster ? 78 : 66;
+        const ph = f.isCluster ? 66 : 66;
 
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -695,24 +756,36 @@ function draw() {
 
         if (thumb) {
             const margin = 3;
-            const imgHeight = f.isCluster ? ph - margin*2 - 16 : ph - margin*2 - 9;
-            ctx.drawImage(thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, imgHeight);
-        }
-
-        // Add the cluster text back in for the fade duration
-        if (f.isCluster) {
-            ctx.fillStyle = '#333333';
-            ctx.font = 'bold 8px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${f.name} [${f.count}]`, 0, ph/2 - 9);
+            const imgHeight = ph - margin*2 - 9;
+            drawThumbCover(ctx, thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, imgHeight);
         }
         
         ctx.restore();
+
+        // Fading label below the card
+        const fadingLabel = f.isCluster ? `${f.name} [${f.count}]` : f.name;
+        if (fadingLabel) {
+            ctx.globalAlpha = alpha;
+            ctx.font = f.isCluster ? 'bold 11px Nunito, sans-serif' : 'bold 10px Nunito, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(fadingLabel, f.x, f.y + ph/2 + 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(fadingLabel, f.x, f.y + ph/2 + 4);
+            ctx.globalAlpha = 1;
+        }
     }
 
     // Draw each cluster or pin
     const currentAppearKeys = new Set();
+    const W = canvas.width, H = canvas.height;
     for (const cluster of clusters) {
+        // Skip clusters entirely off-screen
+        if (cluster.x < -60 || cluster.x > W + 60 || cluster.y < -60 || cluster.y > H + 60) continue;
+
         const count = cluster.pins.length;
         const dx = cluster.x - mouseX;
         const dy = cluster.y - mouseY;
@@ -729,7 +802,6 @@ function draw() {
         }
         const appearElapsed = Date.now() - appearTimes[appearKey];
         const appearT = Math.min(1, appearElapsed / APPEAR_DURATION);
-        // Ease-out cubic
         const appearEased = 1 - Math.pow(1 - appearT, 3);
         const appearScale = 0.3 + 0.7 * appearEased;
         const appearAlpha = appearEased;
@@ -754,34 +826,39 @@ function draw() {
             const tilt = getTilt(repPin.filename);
             const thumb = getThumbnail(repPin.filename, true);
             const pw = 66;
-            const ph = 78;
+            const ph = 66;
 
             ctx.save();
             ctx.globalAlpha = appearAlpha;
             ctx.translate(cluster.x, cluster.y);
             ctx.rotate(tilt);
-            const hoverScale = hovered ? 1.08 : 1;
-            ctx.scale(hoverScale * appearScale, hoverScale * appearScale);
-            ctx.shadowColor = 'rgba(0,0,0,0.55)';
-            ctx.shadowBlur = hovered ? 20 : 14;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 3;
+            const s = (hovered ? 1.08 : 1) * appearScale;
+            ctx.scale(s, s);
+            // Soft shadow via offset rectangle (much cheaper than shadowBlur)
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-pw/2 + 3, -ph/2 + 3, pw, ph);
             ctx.fillStyle = hovered ? '#ffffff' : '#e8e8e8';
             ctx.fillRect(-pw/2, -ph/2, pw, ph);
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
             if (thumb) {
                 const margin = 3;
-                ctx.drawImage(thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, ph - margin*2 - 16);
+                drawThumbCover(ctx, thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, ph - margin*2 - 9);
             }
-            ctx.fillStyle = '#333333';
-            ctx.font = 'bold 8px monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`${cluster.pins[0].name.split(',')[0]} [${count}]`, 0, ph/2 - 9);
             ctx.restore();
+
+            // Label below the card — no rotation
+            const label = `${cluster.pins[0].name.split(',')[0]} [${count}]`;
+            const ly = cluster.y + ph/2 * appearScale + 4;
+            ctx.globalAlpha = appearAlpha;
+            ctx.font = 'bold 11px Nunito, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(label, cluster.x, ly);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(label, cluster.x, ly);
+            ctx.globalAlpha = 1;
         } else {
             const pin = cluster.pins[0];
             const tilt = getTilt(pin.filename);
@@ -793,23 +870,34 @@ function draw() {
             ctx.globalAlpha = appearAlpha;
             ctx.translate(cluster.x, cluster.y);
             ctx.rotate(tilt);
-            const hoverScale = hovered ? 1.08 : 1;
-            ctx.scale(hoverScale * appearScale, hoverScale * appearScale);
-            ctx.shadowColor = 'rgba(0,0,0,0.55)';
-            ctx.shadowBlur = hovered ? 20 : 14;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 3;
+            const s = (hovered ? 1.08 : 1) * appearScale;
+            ctx.scale(s, s);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-pw/2 + 3, -ph/2 + 3, pw, ph);
             ctx.fillStyle = hovered ? '#ffffff' : '#e8e8e8';
             ctx.fillRect(-pw/2, -ph/2, pw, ph);
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
             if (thumb) {
                 const margin = 3;
-                ctx.drawImage(thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, ph - margin*2 - 9);
+                drawThumbCover(ctx, thumb, -pw/2 + margin, -ph/2 + margin, pw - margin*2, ph - margin*2 - 9);
             }
             ctx.restore();
+
+            // Label below the pin
+            const pinLabel = pin.name ? pin.name.split(',')[0] : '';
+            if (pinLabel) {
+                const ly = cluster.y + ph/2 * appearScale + 4;
+                ctx.globalAlpha = appearAlpha;
+                ctx.font = 'bold 10px Nunito, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.lineWidth = 3;
+                ctx.lineJoin = 'round';
+                ctx.strokeText(pinLabel, cluster.x, ly);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(pinLabel, cluster.x, ly);
+                ctx.globalAlpha = 1;
+            }
         }
     }
 
@@ -849,11 +937,19 @@ function draw() {
 }
 
 // Mouse events
+let wasDragged = false;
+
 canvas.addEventListener('mousedown', e => {
     dragging = true;
+    wasDragged = false;
     lastMX = e.clientX;
     lastMY = e.clientY;
     lastInteraction = Date.now();
+    // Cancel any zoom/center animation so drag takes over
+    targetRotY = null;
+    targetRotX = null;
+    zoomAnimStart = null;
+    slowZoom = false;
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -862,6 +958,7 @@ canvas.addEventListener('mousemove', e => {
     if (dragging) {
         const dx = e.clientX - lastMX;
         const dy = e.clientY - lastMY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) wasDragged = true;
         
         const sensitivity = 0.005 / zoom;
 
@@ -885,6 +982,7 @@ canvas.addEventListener('mousemove', e => {
 window.addEventListener('mouseup', () => { dragging = false; });
 
 canvas.addEventListener('click', () => {
+    if (wasDragged) return;
     for (const cluster of lastClusters) {
         const dx = cluster.x - mouseX;
         const dy = cluster.y - mouseY;
@@ -894,15 +992,18 @@ canvas.addEventListener('click', () => {
             if (cluster.pins.length === 1) {
                 const pin = cluster.pins[0];
                 panelName.textContent = pin.name;
-                panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
-                panelDesc.textContent = pin.desc;
+                const coordParts = [pin.lat + '° N  ' + pin.lng + '° E'];
+                if (pin.datetime) coordParts.push(pin.datetime);
+                panelCoords.textContent = coordParts.join('  ·  ');
+                panelDesc.textContent = pin.desc || '';
                 currentClusterPins = null;
                 viewingSingleInCluster = false;
                 closeBtn.textContent = '✕';
+                panelGrid.classList.remove('visible');
+                panelGrid.innerHTML = '';
                 if (pin.filename) {
                     panelImg.src = '/photoglobe/photo/' + pin.filename;
                     panelImg.style.display = 'block';
-                    openLightbox('/photoglobe/photo/' + pin.filename);
                 } else {
                     panelImg.style.display = 'none';
                 }
@@ -934,7 +1035,9 @@ canvas.addEventListener('click', () => {
                     img.addEventListener('click', e => {
                         e.stopPropagation();
                         panelName.textContent = pin.name;
-                        panelCoords.textContent = pin.lat + '° N  ' + pin.lng + '° E';
+                        const cp2 = [pin.lat + '° N  ' + pin.lng + '° E'];
+                        if (pin.datetime) cp2.push(pin.datetime);
+                        panelCoords.textContent = cp2.join('  ·  ');
                         panelDesc.textContent = pin.desc || '';
                         panelImg.src = '/photoglobe/photo/' + pin.filename;
                         panelImg.style.display = 'block';
@@ -1018,33 +1121,50 @@ window.addEventListener('resize', () => {
 canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const step = (e.deltaY > 0 ? -0.3 : 0.3) * zoom * 0.3;
-    zoom = Math.max(0.5, Math.min(MAX_ZOOM, zoom + step));
+    const newZoom = Math.max(0.5, Math.min(MAX_ZOOM, zoom + step));
+    // Zooming in counts as interaction (pauses auto-spin)
+    if (newZoom > zoom) lastInteraction = Date.now();
+    zoom = newZoom;
     targetZoom = zoom;
-    lastInteraction = Date.now();
     slowZoom = false;
     zoomAnimStart = null;
 });
 
 // Group pins into clusters
+// Cache for reuse during animations
+let cachedClusters = [];
+let cachedClusterFrame = 0;
+
 function clusterPins(allPins, r, thresholdPixels) {
     const clusters = [];
     const used = new Set();
-    const len = allPins.length;
 
-    // Pre-compute all 3D and projected positions once
-    const positions = new Array(len);
-    for (let i = 0; i < len; i++) {
+    // Pre-compute all 3D and projected positions once (including back-facing)
+    const positions = [];
+    const cosRY = Math.cos(rotY), sinRY = Math.sin(rotY);
+    const cosRX = Math.cos(rotX), sinRX = Math.sin(rotX);
+    for (let i = 0; i < allPins.length; i++) {
         const p = allPins[i];
-        const p3d = latLngTo3D(p.lat, p.lng, r);
-        const pRot = rotate(p3d);
-        const pProj = project(pRot);
-        positions[i] = { 
-            pin: p, 
-            raw: p3d, 
-            x: pProj.x, y: pProj.y, z: pRot.z 
-        };
+        const phi = (90 - p.lat) * Math.PI / 180;
+        const theta = (p.lng + 180) * Math.PI / 180;
+        const rawX = -Math.sin(phi) * Math.cos(theta) * r;
+        const rawY = Math.cos(phi) * r;
+        const rawZ = Math.sin(phi) * Math.sin(theta) * r;
+
+        // Inline rotate
+        const x1 = rawX * cosRY + rawZ * sinRY;
+        const z1 = -rawX * sinRY + rawZ * cosRY;
+        const y2 = rawY * cosRX - z1 * sinRX;
+        const z2 = rawY * sinRX + z1 * cosRX;
+
+        positions.push({
+            pin: p,
+            rawX: rawX / r, rawY: rawY / r, rawZ: rawZ / r,
+            x: cx + x1, y: cy - y2, z: z2
+        });
     }
 
+    const len = positions.length;
     for (let i = 0; i < len; i++) {
         if (used.has(i)) continue;
         const p1 = positions[i];
@@ -1053,10 +1173,10 @@ function clusterPins(allPins, r, thresholdPixels) {
         for (let j = i + 1; j < len; j++) {
             if (used.has(j)) continue;
             const p2 = positions[j];
-            const dx = p1.raw.x - p2.raw.x;
-            const dy = p1.raw.y - p2.raw.y;
-            const dz = p1.raw.z - p2.raw.z;
-            const dist3D = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            const ddx = p1.rawX - p2.rawX;
+            const ddy = p1.rawY - p2.rawY;
+            const ddz = p1.rawZ - p2.rawZ;
+            const dist3D = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz) * r;
 
             if (dist3D < thresholdPixels) {
                 cluster.pins.push({ ...p2.pin, x: p2.x, y: p2.y, z: p2.z });
@@ -1064,7 +1184,7 @@ function clusterPins(allPins, r, thresholdPixels) {
             }
         }
 
-        // Use only visible pins for cluster center
+        // Only show cluster if at least one pin is on the visible side
         let sumX = 0, sumY = 0, visCount = 0;
         for (const pin of cluster.pins) {
             if (pin.z > 0) {

@@ -10,6 +10,8 @@ from . import photoglobe_bp
 
 register_heif_opener()
 
+SUPPORTED_EXTENSIONS = ('*.heic', '*.HEIC', '*.jpg', '*.JPG', '*.jpeg', '*.JPEG', '*.png', '*.PNG')
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _base():
@@ -32,6 +34,23 @@ def convert_gps(value):
     seconds = value[2][0] / value[2][1]
     return degrees + (minutes / 60) + (seconds / 3600)
 
+def _list_folders():
+    """Return sorted list of subfolder names inside images/."""
+    base = _images_dir()
+    if not os.path.isdir(base):
+        return []
+    return sorted([d for d in os.listdir(base)
+                    if os.path.isdir(os.path.join(base, d)) and not d.startswith('.')])
+
+def _scan_images():
+    """Find all supported images across all subfolders."""
+    images = []
+    for folder in _list_folders():
+        folder_path = os.path.join(_images_dir(), folder)
+        for pattern in SUPPORTED_EXTENSIONS:
+            images += glob.glob(os.path.join(folder_path, pattern))
+    return images
+
 # ── Startup tasks ──────────────────────────────────────────────────────────
 
 def startup():
@@ -53,14 +72,16 @@ def startup():
             with open(_pins_path(), 'w') as f:
                 json.dump(pins, f)
 
-    # Generate WebP thumbnails for any HEIC images that don't have one yet
+    # Generate WebP thumbnails for images in subfolders
     os.makedirs(_thumbnails_dir(), exist_ok=True)
-    images = glob.glob(os.path.join(_images_dir(), '*.HEIC')) + \
-             glob.glob(os.path.join(_images_dir(), '*.heic'))
+    images = _scan_images()
     count = 0
     for filepath in images:
+        folder = os.path.basename(os.path.dirname(filepath))
         filename = os.path.basename(filepath)
-        thumb_path = os.path.join(_thumbnails_dir(), filename + '.webp')
+        thumb_dir = os.path.join(_thumbnails_dir(), folder)
+        os.makedirs(thumb_dir, exist_ok=True)
+        thumb_path = os.path.join(thumb_dir, filename + '.webp')
         if not os.path.exists(thumb_path):
             try:
                 img = Image.open(filepath)
@@ -68,20 +89,18 @@ def startup():
                 img.thumbnail((400, 400))
                 img.save(thumb_path, format='WEBP', quality=80)
                 count += 1
-                print(f'[photoglobe] Generated thumbnail: {filename}')
+                print(f'[photoglobe] Generated thumbnail: {folder}/{filename}')
             except Exception as e:
-                print(f'[photoglobe] Failed thumbnail for {filename}: {e}')
+                print(f'[photoglobe] Failed thumbnail for {folder}/{filename}: {e}')
     print(f'[photoglobe] Thumbnails ready ({count} new)')
 
     # Start background watcher for new images
     import threading, time, subprocess as sp
     def watch_images():
-        known = set(glob.glob(os.path.join(_images_dir(), '*.HEIC')) +
-                    glob.glob(os.path.join(_images_dir(), '*.heic')))
+        known = set(_scan_images())
         while True:
             time.sleep(5)
-            current = set(glob.glob(os.path.join(_images_dir(), '*.HEIC')) +
-                          glob.glob(os.path.join(_images_dir(), '*.heic')))
+            current = set(_scan_images())
             if current != known:
                 print(f'[photoglobe] New photos detected, rebuilding pins...')
                 sp.run(['python', os.path.join(_base(), 'build_pins.py')])
@@ -99,11 +118,19 @@ startup()
 def index():
     return render_template('photoglobe/index.html')
 
-# Serve pins from pins.json, with image paths pointing to the /photoglobe/photo/ route
+# Return list of available folders
+@photoglobe_bp.route('/folders')
+def folders():
+    return jsonify(_list_folders())
+
+# Serve pins from pins.json, optionally filtered by folder
 @photoglobe_bp.route('/pins')
 def pins():
     with open(_pins_path(), 'r') as f:
         data = json.load(f)
+    folder = request.args.get('folder', '')
+    if folder:
+        data = [p for p in data if p.get('folder') == folder]
     for pin in data:
         pin['img'] = f'/photoglobe/photo/{pin["filename"]}'
     return jsonify(data)
@@ -120,14 +147,24 @@ def geocode():
     except:
         return jsonify({})
 
-# Convert HEIC to JPEG on the fly and serve it
-@photoglobe_bp.route('/photo/<filename>')
-def photo(filename):
-    from io import BytesIO
-    filepath = os.path.join(_images_dir(), filename)
-    if not os.path.exists(filepath):
+# Serve photo — JPEG/PNG served directly, HEIC converted to JPEG on the fly
+@photoglobe_bp.route('/photo/<path:filepath>')
+def photo(filepath):
+    full_path = os.path.join(_images_dir(), filepath)
+    if not os.path.exists(full_path):
         return 'Photo not found', 404
-    img = Image.open(filepath)
+
+    ext = os.path.splitext(filepath)[1].lower()
+
+    # JPEG and PNG can be served directly without conversion
+    if ext in ('.jpg', '.jpeg'):
+        return send_file(full_path, mimetype='image/jpeg')
+    if ext == '.png':
+        return send_file(full_path, mimetype='image/png')
+
+    # HEIC (and anything else) gets converted to JPEG
+    from io import BytesIO
+    img = Image.open(full_path)
     img = img.convert('RGB')
     buf = BytesIO()
     img.save(buf, format='JPEG', quality=85)
@@ -135,11 +172,10 @@ def photo(filename):
     return send_file(buf, mimetype='image/jpeg')
 
 # Serve pre-generated WebP thumbnail, falling back to full photo if missing
-@photoglobe_bp.route('/thumbnail/<filename>')
-def thumbnail(filename):
-    thumb_path = os.path.join(_thumbnails_dir(), filename)
+@photoglobe_bp.route('/thumbnail/<path:filepath>')
+def thumbnail(filepath):
+    thumb_path = os.path.join(_thumbnails_dir(), filepath)
     if not os.path.exists(thumb_path):
-        # Strip .webp to get original filename and fall back to full photo
-        original_filename = filename.replace('.webp', '')
-        return photo(original_filename)
-    return send_from_directory(_thumbnails_dir(), filename)
+        original_filepath = filepath.replace('.webp', '')
+        return photo(original_filepath)
+    return send_file(thumb_path, mimetype='image/webp')

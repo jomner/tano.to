@@ -6,3 +6,7 @@
 
 # # Ignore the thumbnails folder if it contains personal images
 # thumbnails/
+
+# Apple file type
+*.pvt/
+*.plist
