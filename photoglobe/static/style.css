@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -15,222 +17,7 @@ canvas {
   display: block;
 }
 
-#tooltip {
-  position: fixed;
-  background: rgba(10, 22, 40, 0.95);
-  border: 1px solid rgba(74, 158, 255, 0.3);
-  color: #c8d8e8;
-  font-family: monospace;
-  font-size: 12px;
-  padding: 8px 12px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-#tooltip.visible {
-  opacity: 1;
-}
-
-#panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 320px;
-  background: #0e1318;
-  border-left: 1px solid rgba(74, 158, 255, 0.15);
-  transform: translateX(100%);
-  will-change: transform;
-  transition: transform 0.4s ease;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-#panel.open {
-  transform: translateX(0);
-}
-
-#panel-header {
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid rgba(74, 158, 255, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-#panel-name {
-  font-family: Georgia, serif;
-  font-size: 20px;
-  font-style: normal;
-  color: #c8d8e8;
-  line-height: 1.2;
-}
-
-#panel-coords {
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  color: rgba(200, 216, 232, 0.4);
-  margin-top: 4px;
-  font-family: monospace;
-}
-
-#close-btn {
-  background: none;
-  border: 1px solid rgba(74, 158, 255, 0.2);
-  color: rgba(200, 216, 232, 0.5);
-  width: 26px;
-  height: 26px;
-  cursor: pointer;
-  font-size: 12px;
-  flex-shrink: 0;
-  margin-left: 12px;
-}
-
-#close-btn:hover {
-  border-color: #4a9eff;
-  color: #4a9eff;
-}
-
-#panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-}
-
-#panel-img {
-  width: 100%;
-  display: none;
-  border: 1px solid rgba(74, 158, 255, 0.15);
-  margin-bottom: 16px;
-}
-
-#panel-desc {
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(200, 216, 232, 0.6);
-  border-left: 2px solid rgba(74, 158, 255, 0.2);
-  padding-left: 12px;
-  font-family: Georgia, serif;
-  font-style: italic;
-}
-
-#logo {
-  position: fixed;
-  top: 24px;
-  left: 28px;
-  height: 72px;
-  width: auto;
-  z-index: 100;
-  opacity: 0.9;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
-}
-
-#logo:hover {
-  opacity: 1;
-}
-
-/* ─── Folder picker — liquid glass dropdown ─────────────────────────────── */
-
-#folder-picker {
-  position: fixed;
-  top: 18px;
-  right: 160px;
-  z-index: 10;
-  transition: opacity 0.3s ease;
-}
-
-/* Hide picker when panel overlaps it */
-#panel.open ~ #folder-picker {
-  opacity: 0;
-  pointer-events: none;
-}
-
-#folder-select {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 120px;
-  background:
-    rgba(220, 235, 255, 0.10);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-top-color: rgba(255, 255, 255, 0.25);
-  color: #eaf2ff;
-  font-family: 'Nunito', sans-serif;
-  font-weight: 600;
-  font-size: 15px;
-  padding: 10px 42px 10px 16px;
-  border-radius: 18px;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-  box-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(220,235,255,0.6)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-}
-
-#folder-select:hover {
-  background-color: rgba(220, 235, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    0 0 12px rgba(100, 170, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-#folder-select:focus {
-  border-color: rgba(100, 170, 255, 0.4);
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    0 0 12px rgba(100, 170, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-#folder-select option {
-  background: #141a22;
-  color: #eaf2ff;
-  font-family: 'Nunito', sans-serif;
-  padding: 6px 10px;
-}
-
-#panel-grid {
-  display: none;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-#panel-grid.visible {
-  display: grid;
-}
-
-#panel-grid img {
-  width: 100%;
-  aspect-ratio: 4/3;
-  object-fit: cover;
-  border: 1px solid rgba(74,158,255,0.15);
-  cursor: pointer;
-}
-
-#panel-grid img:hover {
-  border-color: #4a9eff;
-}
-
-#clock {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    color: #FFD700;
-    font-family: monospace;
-    font-size: 18px;
-    z-index: 10;
-    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
-}
+/* ─── Canvas layers ─────────────────────────────────────────────────────── */
 
 #globe-webgl {
   position: fixed;
@@ -249,23 +36,21 @@ canvas {
   background: transparent;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+/* ─── Logo ───────────────────────────────────────────────────────────────── */
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+#logo {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  height: 72px;
+  width: auto;
+  z-index: 100;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
-body {
-  background: #080b0f;
-  overflow: hidden;
-  width: 100vw;
-  height: 100vh;
-}
-
-canvas {
-  display: block;
+#logo:hover {
+  opacity: 1;
 }
 
 /* ─── Tooltip — glassy pill ─────────────────────────────────────────────── */
@@ -310,7 +95,6 @@ canvas {
   flex-direction: column;
   z-index: 100;
 
-  /* Liquid glass base */
   background:
     linear-gradient(
       170deg,
@@ -322,18 +106,15 @@ canvas {
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
 
-  /* Bubble border — brighter on top-left like a light catch */
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-top-color: rgba(255, 255, 255, 0.28);
   border-left-color: rgba(255, 255, 255, 0.2);
 
-  /* Depth */
   box-shadow:
     0 8px 40px rgba(0, 0, 0, 0.4),
     0 2px 12px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 
-  /* Wii-style slide-in with overshoot bounce */
   transform: translateX(calc(100% + 32px));
   transition: transform 0.5s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
@@ -342,7 +123,7 @@ canvas {
   transform: translateX(0);
 }
 
-/* Specular highlight — Pikmin-style caustic bubble shine */
+/* Specular highlight */
 #panel::before {
   content: '';
   position: absolute;
@@ -361,7 +142,7 @@ canvas {
   border-radius: 50%;
 }
 
-/* Subtle bottom reflection */
+/* Bottom reflection */
 #panel::after {
   content: '';
   position: absolute;
@@ -418,7 +199,7 @@ canvas {
   display: none;
 }
 
-/* ─── Close button — glassy bubble ──────────────────────────────────────── */
+/* ─── Close button ───────────────────────────────────────────────────────── */
 
 #close-btn {
   width: 32px;
@@ -456,7 +237,7 @@ canvas {
   transform: scale(0.95);
 }
 
-/* ─── Back button — glassy bubble (hidden by default) ───────────────────── */
+/* ─── Back button ────────────────────────────────────────────────────────── */
 
 #back-btn {
   width: 32px;
@@ -594,29 +375,74 @@ canvas {
   transition: opacity 0.3s ease;
 }
 
-/* Hide clock when panel overlaps it */
 #panel.open ~ #clock {
   opacity: 0;
   pointer-events: none;
 }
 
-/* ─── Canvas layers ─────────────────────────────────────────────────────── */
+/* ─── Folder picker ──────────────────────────────────────────────────────── */
 
-#globe-webgl {
+#folder-picker {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  top: 18px;
+  right: 160px;
+  z-index: 10;
+  transition: opacity 0.3s ease;
 }
 
-#globe {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: transparent;
+#panel.open ~ #folder-picker {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#folder-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 120px;
+  background: rgba(220, 235, 255, 0.10);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.25);
+  color: #eaf2ff;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 10px 42px 10px 16px;
+  border-radius: 18px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(220,235,255,0.6)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+#folder-select:hover {
+  background-color: rgba(220, 235, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(100, 170, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+#folder-select:focus {
+  border-color: rgba(100, 170, 255, 0.4);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(100, 170, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+#folder-select option {
+  background: #141a22;
+  color: #eaf2ff;
+  font-family: 'Nunito', sans-serif;
+  padding: 6px 10px;
 }
 
 /* ─── Lightbox — fullscreen photo viewer ────────────────────────────────── */
@@ -628,7 +454,6 @@ canvas {
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  /* Use visibility instead of opacity for the container */
   visibility: hidden;
   pointer-events: none;
   transition: visibility 0.3s;
@@ -642,26 +467,45 @@ canvas {
 #lightbox-bg {
   position: absolute;
   inset: 0;
-  /* Starting State */
   background: rgba(4, 6, 10, 0);
   backdrop-filter: blur(0px) saturate(1);
   -webkit-backdrop-filter: blur(0px) saturate(1);
-  
-  /* The Transition: Match durations exactly */
-  transition: 
+  transition:
     background-color 0.3s ease-out,
     backdrop-filter 0.3s ease-out,
     -webkit-backdrop-filter 0.3s ease-out;
-    
   will-change: backdrop-filter, background-color;
 }
 
 #lightbox.open #lightbox-bg {
-  /* Ending State */
   background: rgba(4, 6, 10, 0.75);
   backdrop-filter: blur(8px) saturate(1.2);
   -webkit-backdrop-filter: blur(8px) saturate(1.2);
 }
+
+/* Fade lightbox UI elements in/out with the overlay.
+   pointer-events are already blocked by visibility:hidden on the container. */
+#lightbox-close,
+#lightbox-prev,
+#lightbox-next {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+#lightbox.open #lightbox-close,
+#lightbox.open #lightbox-prev,
+#lightbox.open #lightbox-next {
+  opacity: 1;
+}
+
+/* Navigation fade — toggled by JS class. Duration must match FADE_MS in globe.js */
+#lightbox-img.lb-fading {
+  opacity: 0 !important;
+  transform: scale(0.97) !important;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out !important;
+}
+
+/* ─── Lightbox image ─────────────────────────────────────────────────────── */
 
 #lightbox-img {
   position: relative;
@@ -675,18 +519,62 @@ canvas {
     0 12px 60px rgba(0, 0, 0, 0.5),
     0 4px 20px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transform: scale(0.92);
-  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1);
   opacity: 0;
   transform: scale(0.95);
-  transition: 
-    opacity 0.3s ease-out, 
+  transition:
+    opacity 0.3s ease-out,
     transform 0.3s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 #lightbox.open #lightbox-img {
   opacity: 1;
   transform: scale(1);
+}
+
+/* ─── Lightbox prev/next arrows ─────────────────────────────────────────── */
+
+#lightbox-prev,
+#lightbox-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(220, 235, 255, 0.85);
+  cursor: pointer;
+  font-size: 22px;
+  display: none; /* shown via JS only when multiple images exist */
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  z-index: 2001;
+}
+
+#lightbox-prev { left: 28px; }
+#lightbox-next { right: 28px; }
+
+#lightbox-prev:hover,
+#lightbox-next:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow:
+    0 4px 16px rgba(100, 170, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+#lightbox-prev:active,
+#lightbox-next:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 #lightbox-close {
@@ -706,10 +594,11 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  z-index: 2001;
   box-shadow:
     0 2px 10px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: opacity 0.3s ease-out, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 #lightbox-close:hover {
@@ -723,15 +612,56 @@ canvas {
   transform: scale(0.95);
 }
 
+/* ─── Lightbox info bar ──────────────────────────────────────────────────── */
+
+#lightbox-info {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 2001;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+  pointer-events: none;
+  text-align: center;
+}
+
+#lightbox.open #lightbox-info {
+  opacity: 1;
+}
+
+#lightbox-location {
+  color: rgba(220, 235, 255, 0.95);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+#lightbox-datetime {
+  color: rgba(180, 210, 255, 0.7);
+  font-family: 'Nunito', monospace;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* ─── Spatial tag ────────────────────────────────────────────────────────── */
+
 .spatial-tag {
-    display: inline-block;
-    margin-left: 8px;
-    padding: 2px 6px;
-    background: #4a9eff; /* Electric blue to match your theme */
-    color: #080b0f;
-    font-size: 10px;
-    font-weight: 800;
-    border-radius: 4px;
-    vertical-align: middle;
-    letter-spacing: 0.05em;
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #4a9eff;
+  color: #080b0f;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
 }

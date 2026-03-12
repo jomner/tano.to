@@ -42,7 +42,11 @@ normalTexture.src = '/photoglobe/static/assets/Earth/2k_earth_normal_map.webp';
 let zoom = 1;
 
 // Maxium zoom
+// Maximum zoom (scroll/manual)
 const MAX_ZOOM = 15;
+
+// Maximum zoom triggered by clicking a pin or cluster
+const MAX_CLICK_ZOOM = 3;
 
 // Track whether the mouse is being dragged
 let dragging = false;
@@ -204,9 +208,7 @@ closeBtn.addEventListener('click', () => {
             img.addEventListener('click', e => {
                 e.stopPropagation();
                 panelName.textContent = pin.name;
-                const cp = [pin.lat + '° N  ' + pin.lng + '° E'];
-                if (pin.datetime) cp.push(pin.datetime);
-                panelCoords.textContent = cp.join('  ·  ');
+                updatePanelCoords(pin);
                 panelDesc.textContent = pin.desc || '';
                 panelImg.src = '/photoglobe/photo/' + pin.filename;
                 panelImg.style.display = 'block';
@@ -216,6 +218,8 @@ closeBtn.addEventListener('click', () => {
                 closeBtn.textContent = '←';
                 targetRotY = (-pin.lng - 90) * Math.PI / 180;
                 targetRotX = pin.lat * Math.PI / 180;
+                const idx = currentClusterPins ? currentClusterPins.indexOf(pin) : 0;
+                openLightbox(panelImg.src, currentClusterPins || [], Math.max(0, idx));
             });
             panelGrid.appendChild(img);
         });
@@ -230,26 +234,195 @@ closeBtn.addEventListener('click', () => {
     }
 });
 
-// Lightbox elements
-const lightbox = document.getElementById('lightbox');
-const lightboxImg = document.getElementById('lightbox-img');
-const lightboxClose = document.getElementById('lightbox-close');
+// Lightbox elements — use querySelector so duplicates never cause silent failures
+const lightbox         = document.querySelector('#lightbox');
+const lightboxImg      = document.querySelector('#lightbox-img');
+const lightboxBg       = document.querySelector('#lightbox-bg');
+const lightboxPrev     = document.querySelector('#lightbox-prev');
+const lightboxNext     = document.querySelector('#lightbox-next');
+const lightboxLocation = document.querySelector('#lightbox-location');
+const lightboxDatetime = document.querySelector('#lightbox-datetime');
 
-function openLightbox(src) {
-    lightboxImg.src = src;
-    lightbox.classList.add('open');
+// Bind close to ALL elements with that id (handles stale HTML with duplicate ids)
+const lightboxCloseEls = document.querySelectorAll('#lightbox-close');
+
+// Lightbox state
+let lightboxPins  = [];
+let lightboxIndex = 0;
+let lightboxBusy  = false;
+
+// ── Date/time formatter: "2025-06-07 11:33" → "June 7, 2025  ·  11:33 AM" ──
+function formatDatetime(dt) {
+    if (!dt) return '';
+    const [datePart, timePart] = dt.split(' ');
+    if (!datePart) return dt;
+    const [y, m, d] = datePart.split('-').map(Number);
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    let result = `${months[m - 1]} ${d}, ${y}`;
+    if (timePart) {
+        const [hh, mm] = timePart.split(':').map(Number);
+        const ampm = hh >= 12 ? 'PM' : 'AM';
+        result += `  ·  ${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ampm}`;
+    }
+    return result;
 }
 
+// ── Update side-panel coords block (coords + datetime + spatial tag) ──────
+function updatePanelCoords(pin) {
+    // wipe everything first (textContent removes child nodes)
+    panelCoords.textContent = `${pin.lat}° N  ${pin.lng}° E`;
+    if (pin.datetime) {
+        panelCoords.appendChild(document.createTextNode('  ·  ' + formatDatetime(pin.datetime)));
+    }
+    if (pin.is_spatial) {
+        const tag = document.createElement('span');
+        tag.className = 'spatial-tag';
+        tag.textContent = 'SPATIAL';
+        panelCoords.appendChild(tag);
+    }
+}
+
+// ── Update fullscreen info bar ────────────────────────────────────────────
+function updateLightboxInfo(pin) {
+    if (!pin) {
+        lightboxLocation.textContent = '';
+        lightboxDatetime.textContent = '';
+        return;
+    }
+    lightboxLocation.textContent = pin.name || '';
+    lightboxDatetime.textContent = formatDatetime(pin.datetime);
+}
+
+// ── Arrow visibility (always loops) ──────────────────────────────────────
+function updateArrows() {
+    const show = lightboxPins.length > 1;
+    lightboxPrev.style.display = show ? 'flex' : 'none';
+    lightboxNext.style.display = show ? 'flex' : 'none';
+}
+
+// ── Preload one image into the browser HTTP cache ────────────────────────
+function preloadSrc(src) {
+    if (thumbnailCache['__full__' + src]) return;   // already cached
+    thumbnailCache['__full__' + src] = 'loading';   // mark in-flight
+    const img   = new Image();
+    img.onload  = () => { thumbnailCache['__full__' + src] = true; };
+    img.onerror = () => { delete thumbnailCache['__full__' + src]; };
+    img.src = src;
+}
+
+// Preload ALL photos in the current lightboxPins array (cluster-wide)
+function preloadAll() {
+    for (const pin of lightboxPins) {
+        preloadSrc('/photoglobe/photo/' + pin.filename);
+    }
+}
+
+// ── Open: blank the img FIRST so old photo never flashes ─────────────────
+function openLightbox(src, pins, index) {
+    lightboxPins  = pins  || [];
+    lightboxIndex = typeof index === 'number' ? index : 0;
+    lightboxBusy  = false;
+
+    lightboxImg.classList.remove('lb-fading');
+    lightboxImg.src = '';   // blank prevents old-photo flash
+
+    updateArrows();
+    updateLightboxInfo(lightboxPins[lightboxIndex] || null);
+
+    // Kick off background preload for every photo in the cluster
+    preloadAll();
+
+    // Wait for the requested image specifically before opening
+    const loader   = new Image();
+    const onReady  = () => {
+        lightboxImg.src = src;
+        void lightboxImg.offsetWidth;
+        lightbox.classList.add('open');
+    };
+    loader.onload  = onReady;
+    loader.onerror = onReady;
+    loader.src = src;
+}
+
+// ── Close ────────────────────────────────────────────────────────────────
 function closeLightbox() {
     lightbox.classList.remove('open');
+    lightboxBusy = false;
+    setTimeout(() => {
+        lightboxPrev.style.display = 'none';
+        lightboxNext.style.display = 'none';
+        lightboxImg.classList.remove('lb-fading');
+        lightboxImg.src = '';
+    }, 350);
 }
 
-lightboxClose.addEventListener('click', closeLightbox);
-document.getElementById('lightbox-bg').addEventListener('click', closeLightbox);
+// ── Navigate (wraps around) ───────────────────────────────────────────────
+// Sequence: fade out → swap src (keep hidden) → onload fires (cache = next frame,
+// uncached = after server decode) → remove lb-fading → fade in.
+// This guarantees the OLD photo never fades back in before the new one is ready.
+const FADE_MS = 180;
 
-// Click photo in panel to open lightbox
+function lightboxNavigate(dir) {
+    if (lightboxBusy || !lightboxPins.length) return;
+    lightboxBusy = true;
+
+    const nextIndex = (lightboxIndex + dir + lightboxPins.length) % lightboxPins.length;
+    const pin       = lightboxPins[nextIndex];
+    const nextSrc   = '/photoglobe/photo/' + pin.filename;
+
+    // Fade out
+    lightboxImg.classList.add('lb-fading');
+
+    // After fade-out completes, swap src but keep hidden until new image is decoded
+    setTimeout(() => {
+        lightboxIndex = nextIndex;
+
+        // Clear any previous onload so it doesn't fire for the old request
+        lightboxImg.onload  = null;
+        lightboxImg.onerror = null;
+
+        // Only fade in once the browser has the new image ready to paint
+        lightboxImg.onload = lightboxImg.onerror = () => {
+            lightboxImg.onload  = null;
+            lightboxImg.onerror = null;
+            void lightboxImg.offsetWidth;              // flush before class removal
+            lightboxImg.classList.remove('lb-fading'); // triggers fade-in
+            panelName.textContent = pin.name;
+            updatePanelCoords(pin);
+            panelImg.src = nextSrc;
+            updateLightboxInfo(pin);
+            lightboxBusy = false;
+        };
+
+        lightboxImg.src = nextSrc;   // set AFTER binding onload
+    }, FADE_MS);
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────
+// Close: bind to every #lightbox-close element in case there are HTML dupes
+lightboxCloseEls.forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); closeLightbox(); });
+});
+
+// Background click (only the bg div itself, not children)
+lightboxBg.addEventListener('click', closeLightbox);
+
+lightboxPrev.addEventListener('click', e => { e.stopPropagation(); lightboxNavigate(-1); });
+lightboxNext.addEventListener('click', e => { e.stopPropagation(); lightboxNavigate(1); });
+
+window.addEventListener('keydown', e => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'ArrowLeft')  lightboxNavigate(-1);
+    if (e.key === 'ArrowRight') lightboxNavigate(1);
+    if (e.key === 'Escape')     closeLightbox();
+});
+
+// Click the panel thumbnail to go fullscreen
 panelImg.addEventListener('click', () => {
-    openLightbox(panelImg.src);
+    const pins  = (viewingSingleInCluster && currentClusterPins) ? currentClusterPins : [];
+    const index = pins.findIndex(p => '/photoglobe/photo/' + p.filename === panelImg.src);
+    openLightbox(panelImg.src, pins, Math.max(0, index));
 });
 panelImg.style.cursor = 'pointer';
 
@@ -992,24 +1165,7 @@ canvas.addEventListener('click', () => {
             if (cluster.pins.length === 1) {
                 const pin = cluster.pins[0];
                 panelName.textContent = pin.name;
-                const coordParts = [pin.lat + '° N  ' + pin.lng + '° E'];
-                if (pin.datetime) coordParts.push(pin.datetime);
-                panelCoords.textContent = coordParts.join('  ·  ');
-                // Add Spatial Tag
-                const coordsEl = document.getElementById('panel-coords');
-                if (pin.is_spatial) {
-                    const spatialTag = document.createElement('span');
-                    spatialTag.className = 'spatial-tag';
-                    spatialTag.innerText = 'SPATIAL';
-                    spatialTag.style.marginLeft = '8px';
-                    spatialTag.style.padding = '2px 6px';
-                    spatialTag.style.background = '#4a9eff';
-                    spatialTag.style.color = '#000';
-                    spatialTag.style.fontSize = '10px';
-                    spatialTag.style.fontWeight = 'bold';
-                    spatialTag.style.borderRadius = '4px';
-                    coordsEl.appendChild(spatialTag);
-                }
+                updatePanelCoords(pin);
                 panelDesc.textContent = pin.desc || '';
                 currentClusterPins = null;
                 viewingSingleInCluster = false;
@@ -1022,7 +1178,7 @@ canvas.addEventListener('click', () => {
                 } else {
                     panelImg.style.display = 'none';
                 }
-                const pinZoom = Math.min(Math.max(zoom * 2, 4), MAX_ZOOM);
+                const pinZoom = Math.min(Math.max(zoom * 2, 4), MAX_CLICK_ZOOM);
                 // Only animate zoom if it would zoom in, not out
                 if (pinZoom > zoom) {
                     zoomAnimFrom = zoom;
@@ -1050,9 +1206,7 @@ canvas.addEventListener('click', () => {
                     img.addEventListener('click', e => {
                         e.stopPropagation();
                         panelName.textContent = pin.name;
-                        const cp2 = [pin.lat + '° N  ' + pin.lng + '° E'];
-                        if (pin.datetime) cp2.push(pin.datetime);
-                        panelCoords.textContent = cp2.join('  ·  ');
+                        updatePanelCoords(pin);
                         panelDesc.textContent = pin.desc || '';
                         panelImg.src = '/photoglobe/photo/' + pin.filename;
                         panelImg.style.display = 'block';
@@ -1062,6 +1216,9 @@ canvas.addEventListener('click', () => {
                         closeBtn.textContent = '←';
                         targetRotY = (-pin.lng - 90) * Math.PI / 180;
                         targetRotX = pin.lat * Math.PI / 180;
+                        // Open lightbox immediately with full cluster for navigation
+                        const idx = currentClusterPins ? currentClusterPins.indexOf(pin) : 0;
+                        openLightbox(panelImg.src, currentClusterPins || [], Math.max(0, idx));
                     });
                     panelGrid.appendChild(img);
                 });
@@ -1106,7 +1263,7 @@ canvas.addEventListener('click', () => {
                 breakZoom = Math.max(breakZoom, zoom * 2);
 
                 // Overshoot to ensure break, no upper cap
-                const finalZoom = Math.min(breakZoom * 1.5, MAX_ZOOM);
+                const finalZoom = Math.min(breakZoom * 1.5, MAX_CLICK_ZOOM);
                 // Only animate zoom if it would zoom in, not out
                 if (finalZoom > zoom) {
                     zoomAnimFrom = zoom;
