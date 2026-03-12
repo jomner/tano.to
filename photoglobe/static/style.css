@@ -181,23 +181,41 @@ canvas {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
+#panel-datetime,
 #panel-coords {
-  display: inline-block;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: rgba(180, 210, 255, 0.6);
-  font-family: 'Nunito', monospace;
-  font-weight: 600;
-  margin-top: 6px;
-  padding: 3px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: rgba(180, 210, 255, 0.6);
+    font-family: 'Nunito', monospace;
+    font-weight: 600;
+    margin-top: 6px;
+    padding: 3px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
 }
 
+#panel-datetime:empty,
 #panel-coords:empty {
-  display: none;
+    display: none;
 }
+
+#panel-spatial {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    font-family: 'Nunito', monospace;
+    font-weight: 800;
+    padding: 3px 10px;
+    background: rgba(74, 158, 255, 0.15);
+    border: 1px solid rgba(74, 158, 255, 0.35);
+    border-radius: 12px;
+    color: #4a9eff;
+}
+
+#panel-spatial::before { content: '✦  SPATIAL'; }
 
 /* ─── Close button ───────────────────────────────────────────────────────── */
 

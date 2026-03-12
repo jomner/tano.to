@@ -24,6 +24,9 @@ def _images_dir():
 def _thumbnails_dir():
     return os.path.join(_base(), 'static', 'assets', 'thumbnails')
 
+def _fullsize_dir():
+    return os.path.join(_base(), 'static', 'assets', 'fullsize')
+
 def _pins_path():
     return os.path.join(_base(), 'pins.json')
 
@@ -51,11 +54,34 @@ def _scan_images():
             images += glob.glob(os.path.join(folder_path, pattern))
     return images
 
+def _generate_webp(filepath, out_path, max_size=None, quality=85):
+    """Convert any image to WebP and save to out_path. Returns True on success."""
+    try:
+        img = Image.open(filepath)
+        img = img.convert('RGB')
+        if max_size:
+            img.thumbnail(max_size)
+        else:
+            # Cap long edge at 2400px — full iPhone resolution is overkill for web
+            # and makes conversion 3-5x slower with no visible difference on screen
+            w, h = img.size
+            long_edge = max(w, h)
+            if long_edge > 2400:
+                scale = 2400 / long_edge
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        img.save(out_path, format='WEBP', quality=quality, method=2)
+        return True
+    except Exception as e:
+        print(f'[photoglobe] WebP conversion failed for {filepath}: {e}')
+        return False
+
 # ── Startup tasks ──────────────────────────────────────────────────────────
 
 def startup():
-    """Run once when the Blueprint is first used: build pins, clean missing, generate thumbnails."""
-    import subprocess
+    """Run once when the Blueprint is first used."""
+    import subprocess, threading, time, subprocess as sp
+    from concurrent.futures import ThreadPoolExecutor
 
     print('[photoglobe] Checking for new photos...')
     subprocess.run(['python', os.path.join(_base(), 'build_pins.py')])
@@ -72,38 +98,73 @@ def startup():
             with open(_pins_path(), 'w') as f:
                 json.dump(pins, f)
 
-    # Generate WebP thumbnails for images in subfolders
-    os.makedirs(_thumbnails_dir(), exist_ok=True)
     images = _scan_images()
-    count = 0
-    for filepath in images:
-        folder = os.path.basename(os.path.dirname(filepath))
-        filename = os.path.basename(filepath)
-        thumb_dir = os.path.join(_thumbnails_dir(), folder)
-        os.makedirs(thumb_dir, exist_ok=True)
-        thumb_path = os.path.join(thumb_dir, filename + '.webp')
-        if not os.path.exists(thumb_path):
-            try:
-                img = Image.open(filepath)
-                img = img.convert('RGB')
-                img.thumbnail((400, 400))
-                img.save(thumb_path, format='WEBP', quality=80)
-                count += 1
-                print(f'[photoglobe] Generated thumbnail: {folder}/{filename}')
-            except Exception as e:
-                print(f'[photoglobe] Failed thumbnail for {folder}/{filename}: {e}')
-    print(f'[photoglobe] Thumbnails ready ({count} new)')
 
-    # Start background watcher for new images
-    import threading, time, subprocess as sp
+    # Generate small WebP thumbnails (400×400, for globe pins)
+    thumb_count = 0
+    for filepath in images:
+        folder   = os.path.basename(os.path.dirname(filepath))
+        filename = os.path.basename(filepath)
+        out_path = os.path.join(_thumbnails_dir(), folder, filename + '.webp')
+        if not os.path.exists(out_path):
+            if _generate_webp(filepath, out_path, max_size=(400, 400), quality=80):
+                thumb_count += 1
+                print(f'[photoglobe] Thumbnail: {folder}/{filename}')
+    print(f'[photoglobe] Thumbnails ready ({thumb_count} new)')
+
+    # Generate full-resolution WebP in the background so startup isn't blocked
+    def generate_fullsize():
+        from concurrent.futures import ThreadPoolExecutor
+        todo = []
+        for filepath in images:
+            folder   = os.path.basename(os.path.dirname(filepath))
+            filename = os.path.basename(filepath)
+            out_path = os.path.join(_fullsize_dir(), folder, filename + '.webp')
+            if not os.path.exists(out_path):
+                todo.append((filepath, out_path))
+
+        if not todo:
+            print('[photoglobe] Fullsize WebP: all up to date')
+            return
+
+        print(f'[photoglobe] Generating {len(todo)} fullsize WebP(s) in background...')
+        def convert(args):
+            fp, op = args
+            ok = _generate_webp(fp, op, max_size=None, quality=92)
+            if ok:
+                name = os.path.basename(fp)
+                print(f'[photoglobe] Fullsize: {name}')
+            return ok
+
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            results = list(ex.map(convert, todo))
+        done = sum(1 for r in results if r)
+        print(f'[photoglobe] Fullsize WebP done ({done}/{len(todo)})')
+
+    threading.Thread(target=generate_fullsize, daemon=True).start()
+    print(f'[photoglobe] Fullsize WebP generation started in background')
+
+    # Background watcher — pick up new images dropped into the folder
     def watch_images():
         known = set(_scan_images())
         while True:
             time.sleep(5)
             current = set(_scan_images())
-            if current != known:
-                print(f'[photoglobe] New photos detected, rebuilding pins...')
+            new = current - known
+            if new:
+                print(f'[photoglobe] {len(new)} new photo(s) detected, rebuilding...')
                 sp.run(['python', os.path.join(_base(), 'build_pins.py')])
+                for filepath in new:
+                    folder   = os.path.basename(os.path.dirname(filepath))
+                    filename = os.path.basename(filepath)
+                    # Thumbnail
+                    t_path = os.path.join(_thumbnails_dir(), folder, filename + '.webp')
+                    if not os.path.exists(t_path):
+                        _generate_webp(filepath, t_path, max_size=(400, 400), quality=80)
+                    # Fullsize
+                    f_path = os.path.join(_fullsize_dir(), folder, filename + '.webp')
+                    if not os.path.exists(f_path):
+                        _generate_webp(filepath, f_path, max_size=None, quality=92)
                 known = current
 
     threading.Thread(target=watch_images, daemon=True).start()
@@ -113,17 +174,14 @@ startup()
 
 # ── Routes ─────────────────────────────────────────────────────────────────
 
-# Serve the main Photoglobe page
 @photoglobe_bp.route('/')
 def index():
     return render_template('photoglobe/index.html')
 
-# Return list of available folders
 @photoglobe_bp.route('/folders')
 def folders():
     return jsonify(_list_folders())
 
-# Serve pins from pins.json, optionally filtered by folder
 @photoglobe_bp.route('/pins')
 def pins():
     with open(_pins_path(), 'r') as f:
@@ -135,7 +193,6 @@ def pins():
         pin['img'] = f'/photoglobe/photo/{pin["filename"]}'
     return jsonify(data)
 
-# Proxy reverse geocoding to avoid CORS issues in the browser
 @photoglobe_bp.route('/geocode')
 def geocode():
     lat = request.args.get('lat')
@@ -147,7 +204,19 @@ def geocode():
     except:
         return jsonify({})
 
-# Serve photo — JPEG/PNG served directly, HEIC converted to JPEG on the fly
+# Serve pre-generated full-resolution WebP for the lightbox.
+# Falls back to on-the-fly JPEG conversion if the WebP hasn't been generated yet.
+@photoglobe_bp.route('/fullsize/<path:filepath>')
+def fullsize(filepath):
+    # Strip a trailing .webp if the JS sends filename.heic.webp style
+    webp_path = os.path.join(_fullsize_dir(), filepath + '.webp')
+    if os.path.exists(webp_path):
+        return send_file(webp_path, mimetype='image/webp')
+    # Fallback: generate on the fly (first request only, then cached next startup)
+    return photo(filepath)
+
+# Serve photo — JPEG/PNG served directly, HEIC converted to JPEG on the fly.
+# Still used as a fallback; prefer /fullsize/ for the lightbox.
 @photoglobe_bp.route('/photo/<path:filepath>')
 def photo(filepath):
     full_path = os.path.join(_images_dir(), filepath)
@@ -156,13 +225,11 @@ def photo(filepath):
 
     ext = os.path.splitext(filepath)[1].lower()
 
-    # JPEG and PNG can be served directly without conversion
     if ext in ('.jpg', '.jpeg'):
         return send_file(full_path, mimetype='image/jpeg')
     if ext == '.png':
         return send_file(full_path, mimetype='image/png')
 
-    # HEIC (and anything else) gets converted to JPEG
     from io import BytesIO
     img = Image.open(full_path)
     img = img.convert('RGB')

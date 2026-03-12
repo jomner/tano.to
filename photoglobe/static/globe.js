@@ -195,7 +195,7 @@ closeBtn.addEventListener('click', () => {
         // Back to cluster grid
         const pins = currentClusterPins;
         panelName.textContent = `${pins[0].name.split(',')[0]} [${pins.length}]`;
-        panelCoords.textContent = '';
+        updatePanelCoords(null);
         panelDesc.textContent = '';
         panelImg.style.display = 'none';
         panelGrid.innerHTML = '';
@@ -211,6 +211,7 @@ closeBtn.addEventListener('click', () => {
                 updatePanelCoords(pin);
                 panelDesc.textContent = pin.desc || '';
                 panelImg.src = '/photoglobe/photo/' + pin.filename;
+                panelImg.dataset.filename = pin.filename;
                 panelImg.style.display = 'block';
                 panelGrid.classList.remove('visible');
                 panelGrid.innerHTML = '';
@@ -219,7 +220,7 @@ closeBtn.addEventListener('click', () => {
                 targetRotY = (-pin.lng - 90) * Math.PI / 180;
                 targetRotX = pin.lat * Math.PI / 180;
                 const idx = currentClusterPins ? currentClusterPins.indexOf(pin) : 0;
-                openLightbox(panelImg.src, currentClusterPins || [], Math.max(0, idx));
+                openLightbox('/photoglobe/fullsize/' + pin.filename, currentClusterPins || [], Math.max(0, idx));
             });
             panelGrid.appendChild(img);
         });
@@ -268,19 +269,21 @@ function formatDatetime(dt) {
     return result;
 }
 
-// ── Update side-panel coords block (coords + datetime + spatial tag) ──────
+// ── Update side-panel coords block (date · coords · spatial tag) ──────────
 function updatePanelCoords(pin) {
-    // wipe everything first (textContent removes child nodes)
+    const datetimeEl = document.getElementById('panel-datetime');
+    const spatialEl  = document.getElementById('panel-spatial');
+    if (!pin) {
+        datetimeEl.textContent = '';
+        datetimeEl.style.display = 'none';
+        panelCoords.textContent = '';
+        spatialEl.style.display = 'none';
+        return;
+    }
+    datetimeEl.textContent = pin.datetime ? formatDatetime(pin.datetime) : '';
+    datetimeEl.style.display = pin.datetime ? 'inline-block' : 'none';
     panelCoords.textContent = `${pin.lat}° N  ${pin.lng}° E`;
-    if (pin.datetime) {
-        panelCoords.appendChild(document.createTextNode('  ·  ' + formatDatetime(pin.datetime)));
-    }
-    if (pin.is_spatial) {
-        const tag = document.createElement('span');
-        tag.className = 'spatial-tag';
-        tag.textContent = 'SPATIAL';
-        panelCoords.appendChild(tag);
-    }
+    spatialEl.style.display = pin.is_spatial ? 'inline-block' : 'none';
 }
 
 // ── Update fullscreen info bar ────────────────────────────────────────────
@@ -314,7 +317,7 @@ function preloadSrc(src) {
 // Preload ALL photos in the current lightboxPins array (cluster-wide)
 function preloadAll() {
     for (const pin of lightboxPins) {
-        preloadSrc('/photoglobe/photo/' + pin.filename);
+        preloadSrc('/photoglobe/fullsize/' + pin.filename);
     }
 }
 
@@ -369,7 +372,7 @@ function lightboxNavigate(dir) {
 
     const nextIndex = (lightboxIndex + dir + lightboxPins.length) % lightboxPins.length;
     const pin       = lightboxPins[nextIndex];
-    const nextSrc   = '/photoglobe/photo/' + pin.filename;
+    const nextSrc   = '/photoglobe/fullsize/' + pin.filename;
 
     // Fade out
     lightboxImg.classList.add('lb-fading');
@@ -391,6 +394,7 @@ function lightboxNavigate(dir) {
             panelName.textContent = pin.name;
             updatePanelCoords(pin);
             panelImg.src = nextSrc;
+            panelImg.dataset.filename = pin.filename;
             updateLightboxInfo(pin);
             lightboxBusy = false;
         };
@@ -420,9 +424,14 @@ window.addEventListener('keydown', e => {
 
 // Click the panel thumbnail to go fullscreen
 panelImg.addEventListener('click', () => {
-    const pins  = (viewingSingleInCluster && currentClusterPins) ? currentClusterPins : [];
-    const index = pins.findIndex(p => '/photoglobe/photo/' + p.filename === panelImg.src);
-    openLightbox(panelImg.src, pins, Math.max(0, index));
+    const filename = panelImg.dataset.filename;
+    if (!filename) return;
+    const src   = '/photoglobe/fullsize/' + filename;
+    const pins  = (viewingSingleInCluster && currentClusterPins) 
+        ? currentClusterPins 
+        : (currentSinglePin ? [currentSinglePin] : []);
+    const index = pins.findIndex(p => p.filename === filename);
+    openLightbox(src, pins, Math.max(0, index));
 });
 panelImg.style.cursor = 'pointer';
 
@@ -1173,7 +1182,9 @@ canvas.addEventListener('click', () => {
                 panelGrid.classList.remove('visible');
                 panelGrid.innerHTML = '';
                 if (pin.filename) {
+                    currentSinglePin = pin;
                     panelImg.src = '/photoglobe/photo/' + pin.filename;
+                panelImg.dataset.filename = pin.filename;
                     panelImg.style.display = 'block';
                 } else {
                     panelImg.style.display = 'none';
@@ -1192,7 +1203,7 @@ canvas.addEventListener('click', () => {
                 panel.classList.add('open');
             } else {
                 panelName.textContent = `${cluster.pins[0].name.split(',')[0]} [${cluster.pins.length}]`;
-                panelCoords.textContent = '';
+                updatePanelCoords(null);
                 panelDesc.textContent = '';
                 panelImg.style.display = 'none';
                 panelGrid.innerHTML = '';
@@ -1209,6 +1220,7 @@ canvas.addEventListener('click', () => {
                         updatePanelCoords(pin);
                         panelDesc.textContent = pin.desc || '';
                         panelImg.src = '/photoglobe/photo/' + pin.filename;
+                panelImg.dataset.filename = pin.filename;
                         panelImg.style.display = 'block';
                         panelGrid.classList.remove('visible');
                         panelGrid.innerHTML = '';
@@ -1218,7 +1230,7 @@ canvas.addEventListener('click', () => {
                         targetRotX = pin.lat * Math.PI / 180;
                         // Open lightbox immediately with full cluster for navigation
                         const idx = currentClusterPins ? currentClusterPins.indexOf(pin) : 0;
-                        openLightbox(panelImg.src, currentClusterPins || [], Math.max(0, idx));
+                        openLightbox('/photoglobe/fullsize/' + pin.filename, currentClusterPins || [], Math.max(0, idx));
                     });
                     panelGrid.appendChild(img);
                 });
