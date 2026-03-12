@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media — tano.to</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="site-wrapper">
+        <a href="/">
+            <img src="/static/assets/tanotologo.png" alt="tano.to" class="logo">
+        </a>
+
+        <div class="content-box">
+            <nav class="main-nav">
+                <a href="/projects">Projects</a>
+                <a href="/media">Media</a>
+                <a href="/blog">Blog</a>
+                <a href="/dreams">Dreams</a>
+                <a href="/misc">Misc.</a>
+                <a href="/about">About</a>
+            </nav>
+
+            <div class="page-content">
+                <!-- your content goes here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+        const currentPath = window.location.pathname;
+        document.querySelectorAll('.main-nav a').forEach(link => {
+            if (link.getAttribute('href') === currentPath) {
+                link.classList.add('active');
+            }
+        });
+    </script>
+</body>
+</html>
