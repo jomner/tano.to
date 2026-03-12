@@ -180,12 +180,16 @@ body {
 .bio {
     color: rgba(255, 255, 255, 0.6);
     font-family: sans-serif;
-    font-size: 15px;
+    font-size: 25px;
     line-height: 1.8;
+    text-align: center; /* temporary, probably */
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
 
 .bio-title {
     color: rgba(255, 255, 255, 0.9);
-    font-size: 52px;
+    font-size: 45px;
     margin-bottom: 10px;
+    text-align: center; /* temporary, probably */
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
